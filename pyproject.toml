@@ -4,12 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mdump"
-version = "0.4.0"
+version = "0.4.1"
 description = "A tool to dump project structure and file contents to Markdown format"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.13"
 license = { text = "MIT" }
-authors = [{ name = "Your Name", email = "your.email@example.com" }]
+authors = [{ name = "ack2406", email = "69360161+ack2406@users.noreply.github.com" }]
 
 dependencies = [
     "click>=8.0.0",
