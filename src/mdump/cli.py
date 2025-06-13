@@ -1,101 +1,124 @@
-from __future__ import annotations
+"""
+Command line interface for mdump
+"""
 
-import argparse
 import os
-import pathlib
-import re
 import sys
-from typing import Pattern
+from pathlib import Path
+from typing import Optional
+import click
+import pyperclip
+
+from .core import ProjectDumper
 
 
-def _compile(expr: str | None) -> Pattern[str] | None:
-    """Compile a regular expression if provided."""
-    return re.compile(rf"^({expr})$", re.IGNORECASE) if expr else None
-
-
-def _ext_ok(path: pathlib.Path, ext_re: Pattern[str] | None) -> bool:
-    """Check if the file matches the allowed extensions."""
-    if ext_re is None:
-        return True
-    return bool(ext_re.match(path.suffix.lstrip(".")))
-
-
-def generate_markdown(
-    root: pathlib.Path,
-    ignore_re: Pattern[str] | None,
-    ext_re: Pattern[str] | None,
-    output: pathlib.Path,
-) -> None:
-    """Writes a Markdown document containing all matching files and their contents."""
-    with output.open("w", encoding="utf-8") as md:
-        for dirpath, dirnames, filenames in os.walk(root):
-            # Filter out ignored directories
-            dirnames[:] = [
-                d for d in dirnames if ignore_re is None or not ignore_re.match(d)
+@click.command()
+@click.argument('path', default='.', type=click.Path(exists=True))
+@click.option(
+    '--output', '-o',
+    type=click.Path(),
+    help='Output file path (default: stdout)'
+)
+@click.option(
+    '--clipboard', '-c',
+    is_flag=True,
+    help='Copy output to clipboard'
+)
+@click.option(
+    '--exclude-dirs',
+    help='Comma-separated list of directories to exclude'
+)
+@click.option(
+    '--exclude-files',
+    help='Comma-separated list of files to exclude'
+)
+@click.option(
+    '--exclude-extensions',
+    help='Comma-separated list of file extensions to exclude (e.g., .pyc,.log)'
+)
+@click.option(
+    '--include-gitignore',
+    is_flag=True,
+    help="Include .gitignore and other config files in output"
+)
+@click.option(
+    '--max-file-size',
+    type=int,
+    default=1024*1024,
+    help='Maximum file size to include in bytes (default: 1MB)'
+)
+@click.version_option()
+def main(
+    path: str,
+    output: Optional[str],
+    clipboard: bool,
+    exclude_dirs: Optional[str],
+    exclude_files: Optional[str], 
+    exclude_extensions: Optional[str],
+    include_gitignore: bool,
+    max_file_size: int
+):
+    """
+    Generate a Markdown dump of project structure and file contents.
+    
+    PATH: Target directory to dump (default: current directory)
+    """
+    try:
+        # Parse exclusion lists
+        exclude_dirs_list = []
+        if exclude_dirs:
+            exclude_dirs_list = [d.strip() for d in exclude_dirs.split(',')]
+        
+        exclude_files_list = []
+        if exclude_files:
+            exclude_files_list = [f.strip() for f in exclude_files.split(',')]
+            
+        exclude_extensions_list = []
+        if exclude_extensions:
+            exclude_extensions_list = [
+                ext.strip() if ext.strip().startswith('.') else f'.{ext.strip()}'
+                for ext in exclude_extensions.split(',')
             ]
-
-            for fname in filenames:
-                path = pathlib.Path(dirpath, fname)
-                if not _ext_ok(path, ext_re):
-                    continue
-
-                rel = path.relative_to(root)
-                md.write(f"{rel}\n\n")
-
-                lang = path.suffix.lstrip(".")  # Syntax highlighting language
-                md.write(f"```{lang}\n")
-
-                try:
-                    text = path.read_text(encoding="utf-8", errors="replace")
-                except Exception as exc:
-                    # Could not read file (binary, permission error, etc.)
-                    sys.stderr.write(f"Skipping {rel}: {exc}\n")
-                    md.write(f"**ERROR READING FILE: {exc}**\n")
-                else:
-                    md.write(text)
-                    if not text.endswith("\n"):
-                        md.write("\n")
-
-                md.write("```\n\n")
-
-
-def main() -> None:
-    ap = argparse.ArgumentParser(
-        prog="mdump",
-        description="Recursively collects source files and exports them into a single Markdown document.",
-    )
-    ap.add_argument(
-        "root",
-        nargs="?",
-        default=".",
-        help="Root directory to scan (default: current directory).",
-    )
-    ap.add_argument(
-        "-I",
-        "--ignore-dirs",
-        metavar="REGEX",
-        help="Regular expression for directories to ignore.",
-    )
-    ap.add_argument(
-        "-E",
-        "--extensions",
-        metavar="REGEX",
-        help="Regular expression for file extensions to include (no dot).",
-    )
-    ap.add_argument(
-        "-o", "--output", default="dump.md", help="Path to the output Markdown file."
-    )
-    args = ap.parse_args()
-
-    root = pathlib.Path(args.root).resolve()
-    output = pathlib.Path(args.output).resolve()
-
-    ignore_re = _compile(args.ignore_dirs)
-    ext_re = _compile(args.extensions)
-
-    generate_markdown(root, ignore_re, ext_re, output)
-    print(f"✔ Generated {output.relative_to(pathlib.Path.cwd())}")
+        
+        # Create dumper
+        dumper = ProjectDumper(
+            target_path=path,
+            exclude_dirs=exclude_dirs_list,
+            exclude_files=exclude_files_list,
+            exclude_extensions=exclude_extensions_list,
+            use_gitignore=not include_gitignore,
+            exclude_defaults=not include_gitignore,
+            max_file_size=max_file_size
+        )
+        
+        # Generate dump
+        click.echo("Generating project dump...", err=True)
+        dump_content = dumper.generate_dump()
+        
+        # Output handling
+        if output:
+            # Write to file
+            output_path = Path(output)
+            output_path.write_text(dump_content, encoding='utf-8')
+            click.echo(f"Dump saved to: {output_path}", err=True)
+        else:
+            # Print to stdout
+            click.echo(dump_content)
+        
+        # Copy to clipboard if requested
+        if clipboard:
+            try:
+                pyperclip.copy(dump_content)
+                click.echo("Dump copied to clipboard!", err=True)
+            except pyperclip.PyperclipException as e:
+                click.echo(f"Warning: Could not copy to clipboard: {e}", err=True)
+        
+        click.echo("Done!", err=True)
+        
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

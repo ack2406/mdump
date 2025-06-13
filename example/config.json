@@ -1,0 +1,10 @@
+{
+    "app_name": "Example App",
+    "version": "1.0.0",
+    "debug": true,
+    "settings": {
+        "greeting_prefix": "Hello",
+        "max_items": 100,
+        "timeout": 30
+    }
+}

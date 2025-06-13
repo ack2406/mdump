@@ -1,45 +1,89 @@
 # mdump
 
-**mdump** is a CLI tool that recursively scans source code directories and exports the contents of selected files into a single, structured Markdown document.
+A tool for generating project structure documentation in Markdown format.
 
-This tool was created to simplify sharing full project context with generative AI systems, making it easier to perform code reviews, debugging, or generate suggestions using LLMs.
+## Description
 
-## Features
-
-- Recursively walks through project directories
-- Skips selected folders using regex filters
-- Includes only files matching specific extensions
-- Outputs one clean, readable `.md` file with paths and syntax-highlighted code blocks
+`mdump` is a CLI tool that allows you to quickly generate a project overview containing:
+- Directory structure (similar to `tree`)
+- Contents of all text files
+- Automatic ignoring of files listed in `.gitignore`
+- Ability to exclude specific folders, files, and extensions
+- Automatic copying of results to the clipboard
 
 ## Installation
 
-You can install `mdump` from a built wheel:
-
 ```bash
-uv tool install dist/mdump-1.0.0-py3-none-any.whl
-```
-
-Or run it directly from the wheel without installing:
-
-```bash
-uvx dist/mdump-1.0.0-py3-none-any.whl
-```
-
-Once installed, `mdump` can be used globally:
-
-```bash
-mdump --help
+uv build
+uv tool install dist/mdump-*.whl
 ```
 
 ## Usage
 
 ```bash
-mdump -I 'bin|obj|node_modules' -E 'cs|json|csproj|sln' -o sources.md
+# Dump the current directory
+mdump
+
+# Dump a specific directory
+mdump ./test-project
+
+# Dump with output saved to a file
+mdump --output project-dump.md
+
+# Dump with automatic copying to the clipboard
+mdump --clipboard
+
+# Dump excluding specific folders
+mdump --exclude-dirs node_modules,dist,build
+
+# Dump excluding specific extensions
+mdump --exclude-extensions .pyc,.log,.tmp
+
+# Display help
+mdump --help
 ```
 
-### Arguments
+## Options
 
-- `-I`, `--ignore-dirs`: Regex pattern to ignore folders (e.g., `bin|obj|node_modules`)
-- `-E`, `--extensions`: Regex pattern to match file extensions (e.g., `cs|json`)
-- `-o`, `--output`: Path to output Markdown file (default: `dump.md`)
-- `root`: Optional root path to start scanning (default: current directory)
+- `--output, -o`: Save the output to a file instead of displaying it on stdout
+- `--clipboard, -c`: Copy the output to the clipboard
+- `--exclude-dirs`: Comma-separated list of folders to exclude
+- `--exclude-files`: Comma-separated list of files to exclude  
+- `--exclude-extensions`: Comma-separated list of extensions to exclude
+- `--no-gitignore`: Do not use rules from .gitignore
+- `--max-file-size`: Maximum file size to include (default 1MB)
+- `--help`: Display help
+
+## Example Output
+
+```markdown
+# Project Structure
+
+```
+project/
+├── src/
+│   ├── main.py
+│   └── utils.py
+├── tests/
+│   └── test_main.py
+├── README.md
+└── requirements.txt
+```
+
+## File Contents
+
+### src/main.py
+```python
+def main():
+    print("Hello, World!")
+```
+
+### src/utils.py
+```python
+def helper_function():
+    return "Helper"
+```
+
+## License
+
+MIT License
